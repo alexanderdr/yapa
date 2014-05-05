@@ -11,6 +11,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
 
+import java.util.ArrayList;
+
 public class MainActivity extends Activity {
 
     private final String TAG = "yapam-main";
@@ -37,7 +39,6 @@ public class MainActivity extends Activity {
         super.onPause();
         Log.d(TAG, "paused");
         dropboxManager.onPause();
-        //need to unlisten for dropbox changes...
     }
 
     @Override
@@ -55,21 +56,35 @@ public class MainActivity extends Activity {
 
         ListView fileList = (ListView) findViewById(R.id.filename_list);
         String[] files = dropboxManager.getFileListAsStrings();
+        ArrayList<String> filteredList = new ArrayList<String>();
+
+        //somewhat slow for longer file lists
+        for(String s : files) {
+            if(!s.matches(".*\\.jpg")&&!s.matches(".*\\.png")) { //filter non-pngs and non-jpgs from the list
+                continue;
+            }
+            filteredList.add(s);
+        }
+        files = new String[filteredList.size()];
+        filteredList.toArray(files);
         fileList.setAdapter(new ArrayAdapter<String>(getApplicationContext(), R.layout.file_item , files) {
             //adapted from https://github.com/thecodepath/android_guides/wiki/Using-an-ArrayAdapter-with-ListView
             @Override
             public View getView(int position, View convertView, ViewGroup parent) {
                 // Get the data item for this position
                 final String filename = getItem(position);
+
                 // Check if an existing view is being reused, otherwise inflate the view
                 if (convertView == null) {
                     convertView = LayoutInflater.from(getContext()).inflate(R.layout.file_item, parent, false);
                 }
+
                 // Lookup view for data population
                 TextView filenameView = (TextView) convertView.findViewById(R.id.listitem_filename);
                 // Populate the data into the template view using the data object
                 filenameView.setText(filename);
 
+                //attach onClick to view image for each list item
                 convertView.setOnClickListener(new View.OnClickListener() {
                     public void onClick(View v) {
                         viewImage(filename);
@@ -101,7 +116,7 @@ public class MainActivity extends Activity {
 
             builder.setMessage(R.string.need_linked_account_message)
                     .setTitle(R.string.need_linked_account_title)
-                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    .setPositiveButton(R.string.ok, new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int id) {
                             //don't care, just want a button
                         }
@@ -138,10 +153,8 @@ public class MainActivity extends Activity {
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == DropboxManager.REQUEST_LINK_TO_DBX) {
             if (resultCode == Activity.RESULT_OK) {
-                dropboxManager.addPathListener();
-                // ... Start using Dropbox files.
+                dropboxManager.addPathListener(); //would really like to have this somewhere in the DropboxManager
             } else {
-                // ... Link failed or was cancelled by the user.
                 Log.d(TAG, "Failed to link to dropbox account");
             }
 

@@ -8,9 +8,6 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.ImageView;
 
-/**
- * Created by Dar on 5/5/2014.
- */
 public class ImageViewActivity extends Activity {
 
     private final String TAG = "image-view-activity";

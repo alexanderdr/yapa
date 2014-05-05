@@ -14,9 +14,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 
-/**
- * Created by Dar on 5/4/2014.
- */
 public class PhotoActivity extends Activity {
 
     private final String TAG = "photo-activity";
@@ -46,14 +43,10 @@ public class PhotoActivity extends Activity {
         Log.d(TAG, "camera preview attached...");
 
         pictureCallback = new Camera.PictureCallback() {
-
             @Override
             public void onPictureTaken(byte[] data, Camera camera) {
-
                 dropboxManager.saveImageData(data);
-
-                camera.startPreview();
-
+                camera.startPreview(); //restart the preview-- takePicture() automatically stops it
             }
         };
     }
@@ -72,13 +65,6 @@ public class PhotoActivity extends Activity {
         releaseCamera();
     }
 
-    private void releaseCamera(){
-        if (camera != null){
-            camera.release();        // release the camera for other applications
-            camera = null;
-        }
-    }
-
     @Override
     protected void onResume() {
         super.onResume();
@@ -86,14 +72,17 @@ public class PhotoActivity extends Activity {
         dropboxManager.onResume();
     }
 
-    public void onPhotoPreviewClicked(View view) {
-        Log.d(TAG, "take a picture~");
+    private void releaseCamera(){
+        if (camera != null){
+            camera.release();        // release the camera for other applications
+            camera = null;
+        }
+    }
 
+    public void onPhotoPreviewClicked(View view) {
         try {
             //camera.stopPreview(); //one thing android actually handles, apparently
             camera.takePicture(null, null, pictureCallback);
-
-            Log.d(TAG, "picture taken");
         } catch (Exception e) {
             Log.d(TAG, "Problem with takePicture()", e);
         }
@@ -116,10 +105,9 @@ public class PhotoActivity extends Activity {
         }
         Camera c = null;
         try {
-            c = Camera.open(); // attempt to get a Camera instance
+            c = Camera.open();
         }
         catch (Exception e){
-            // Camera is not available (in use or does not exist)
             Log.d("yapam-camera", "Exception attempting to get a camera handle", e);
         }
         return c; // returns null if camera is unavailable

@@ -11,24 +11,20 @@ import java.io.OutputStream;
 import java.util.List;
 import java.util.StringTokenizer;
 
-/**
- * Created by Dar on 5/4/2014.
- */
 public class DropboxManager {
 
     private DbxAccountManager dropboxAccountManager;
-    private DbxFile rootDirectory;
 
     private boolean shouldUpdate = false;
 
     private final String APP_KEY = "akqeqxu5gzn2nd1";
     private final String APP_SECRET = "ik4rwf8bczkdsur"; //I somehow feel like this shouldn't be stored in the app... but it's needed
 
-    private final String TAG = "DropboxWrapper";
+    private final String TAG = "dropbox-wrapper";
 
     Activity owningActivity;
 
-    public static final int REQUEST_LINK_TO_DBX = 582937465;
+    public static final int REQUEST_LINK_TO_DBX = 582937465; //arbitrary number
 
     private Context context;
 
@@ -48,6 +44,12 @@ public class DropboxManager {
         };
 
         addPathListener();
+    }
+
+    public void onPause() {
+    }
+
+    public void onResume() {
     }
 
     public void asyncSync() {
@@ -137,6 +139,8 @@ public class DropboxManager {
             try {
                 dropboxAccountManager.startLink(owningActivity, REQUEST_LINK_TO_DBX);
 
+                //addPathListener is called in MainActivity after we recieve the callback here, because we don't
+                //have a valid account so .forAccount errors
             } catch (Exception e) {
                 Log.d(TAG, "Exception attempting to dropboxAccountManager.startLink", e);
             }
@@ -164,12 +168,6 @@ public class DropboxManager {
             return false;
         }
         return true;
-    }
-
-    public void onPause() {
-    }
-
-    public void onResume() {
     }
 
     public byte[] getFileAsBytes(String s) {

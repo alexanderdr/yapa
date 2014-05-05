@@ -1,9 +1,5 @@
 package com.example.yapa;
 
-/**
- * Created by Dar on 5/4/2014.
- */
-
 import android.content.Context;
 
 import android.hardware.Camera;
