@@ -1,20 +1,15 @@
 package com.example.yapa;
 
 import android.app.Activity;
-import android.content.Context;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.hardware.Camera;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.*;
-import com.dropbox.sync.android.DbxAccount;
-import com.dropbox.sync.android.DbxAccountManager;
-import com.dropbox.sync.android.DbxException;
-
 
 public class MainActivity extends Activity {
 
@@ -30,16 +25,11 @@ public class MainActivity extends Activity {
         dropboxManager = new DropboxManager(this, getApplicationContext());
         dropboxManager.asyncSync(new CallbackWrapper() {
             public void call() {
-                //updateFileList();
+                updateFileList();
             }
-        }); //need to listen for changes as well, but this should at least handle things if we restart
+        });
 
-        updateSyncButton();
-
-        //really really unhappy to do this since the callback thread isn't permitted to update the UI
-        while(!dropboxManager.isSynced());
-
-        updateFileList();
+        updateSyncness();
     }
 
     @Override
@@ -95,20 +85,31 @@ public class MainActivity extends Activity {
     public void onClickToggleLinkToDropbox(View view) {
         dropboxManager.toggleLinkage();
 
-        updateSyncButton();
+        updateSyncness();
     }
 
     public void viewImage(String s) {
         Intent intent = new Intent(this, ImageViewActivity.class);
         //intent.putExtra("imageData", imageData); //this causes a java.lang.SecurityException because apparently intents have a limited size for extras
-        intent.putExtra("imagePath", s);
+        intent.putExtra(ImageViewActivity.IMAGE_PATH_EXTRA, s);
         startActivity(intent);
     }
 
     public void onClickPhotoMode(View view) {
         if(!dropboxManager.linkReady()) {
-            //should print some kind of error message, or make the button appear disabled
-            //"can't take pictures without a linked dropbox account"
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+            builder.setMessage(R.string.need_linked_account_message)
+                    .setTitle(R.string.need_linked_account_title)
+                    .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int id) {
+                            //don't care, just want a button
+                        }
+                    });
+
+            AlertDialog dialog = builder.create();
+            dialog.show();
+
             return;
         }
 
@@ -118,14 +119,18 @@ public class MainActivity extends Activity {
 
     //We could use a ToggleButton here but we would need to update on app load anyway, and update based on whether or not
     //we successfully link, so it wouldn't save us much, and just provides a different display, a switch may be worth considering
-    private void updateSyncButton() {
+    private void updateSyncness() {
         if(dropboxManager.linkReady()) {
             Button myButton = (Button) findViewById(R.id.sync_button);
             myButton.setText(R.string.unlink_account);
 
+            updateFileList();
         } else {
             Button myButton = (Button) findViewById(R.id.sync_button);
             myButton.setText(R.string.link_account);
+
+            updateFileList();
+            //empty out file list
         }
     }
 
@@ -133,13 +138,14 @@ public class MainActivity extends Activity {
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == DropboxManager.REQUEST_LINK_TO_DBX) {
             if (resultCode == Activity.RESULT_OK) {
+                dropboxManager.addPathListener();
                 // ... Start using Dropbox files.
             } else {
                 // ... Link failed or was cancelled by the user.
                 Log.d(TAG, "Failed to link to dropbox account");
             }
 
-            updateSyncButton();
+            updateSyncness();
         } else {
             super.onActivityResult(requestCode, resultCode, data);
         }

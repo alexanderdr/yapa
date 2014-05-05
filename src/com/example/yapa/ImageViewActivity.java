@@ -15,12 +15,14 @@ public class ImageViewActivity extends Activity {
 
     private final String TAG = "image-view-activity";
 
+    public static final String IMAGE_PATH_EXTRA = "imagePath";
+
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.image_view);
 
         Intent intent = getIntent();
-        String imagePath = intent.getStringExtra("imagePath");
+        String imagePath = intent.getStringExtra(IMAGE_PATH_EXTRA);
         Log.d(TAG, "imagePath is "+imagePath);
         if(imagePath != null && imagePath.length() > 0) {
 

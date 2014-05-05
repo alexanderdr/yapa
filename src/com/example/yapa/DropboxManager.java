@@ -2,6 +2,8 @@ package com.example.yapa;
 
 import android.app.Activity;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import com.dropbox.sync.android.*;
 
@@ -28,22 +30,24 @@ public class DropboxManager {
 
     public static final int REQUEST_LINK_TO_DBX = 582937465;
 
+    private Context context;
+
+    private DbxFileSystem.PathListener listener;
+
     public DropboxManager(Activity owner, Context ctx) {
         dropboxAccountManager = DbxAccountManager.getInstance(ctx, APP_KEY, APP_SECRET);
         owningActivity = owner;
 
-        try {
-            DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
-            dbxFs.addPathListener(new DbxFileSystem.PathListener() {
-                @Override
-                public void onPathChange(DbxFileSystem fs, DbxPath registeredPath, Mode registeredMode) {
-                    Log.d(TAG, "We should now try and update...");
-                    shouldUpdate = true;
-                }
-            }, new DbxPath("/"), DbxFileSystem.PathListener.Mode.PATH_OR_CHILD);
-        } catch (Exception e) {
-            Log.d(TAG, "Problem listening to root", e);
-        }
+        context = ctx;
+
+        listener = new DbxFileSystem.PathListener() {
+            @Override
+            public void onPathChange(DbxFileSystem fs, DbxPath registeredPath, Mode registeredMode) {
+                shouldUpdate = true;
+            }
+        };
+
+        addPathListener();
     }
 
     public void asyncSync() {
@@ -63,15 +67,21 @@ public class DropboxManager {
                     DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
                     dbxFs.syncNowAndWait();
 
+                    //run the callback on the main thread because it may need to do UI work
+                    if(callback != null) {
+                        Handler h = new Handler(Looper.getMainLooper());
+                        h.post(new Runnable() {
+                            public void run() {
+                                callback.call();
+                            }
+                        });
+                    }
+
                 } catch (Exception e) {
                     Log.d(TAG, "error syncing", e);
                 }
 
                 synced = true;
-
-                if(callback != null) {
-                    callback.call();
-                }
             }
         };
         t.start();
@@ -94,18 +104,20 @@ public class DropboxManager {
     }
 
     public String[] getFileListAsStrings() {
-        try {
-            DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
-            List<DbxFileInfo> files = dbxFs.listFolder(new DbxPath("/"));
-            String[] result = new String[files.size()];
-            int i = 0;
-            for(DbxFileInfo info : files) {
-                result[i] = info.path.getName(); //toString();
-                i++;
+        if(dropboxAccountManager.hasLinkedAccount()) {
+            try {
+                DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
+                List<DbxFileInfo> files = dbxFs.listFolder(new DbxPath("/"));
+                String[] result = new String[files.size()];
+                int i = 0;
+                for (DbxFileInfo info : files) {
+                    result[i] = info.path.getName(); //toString();
+                    i++;
+                }
+                return result;
+            } catch (Exception e) {
+                Log.d(TAG, "error listing files", e);
             }
-            return result;
-        } catch (Exception e) {
-            Log.d(TAG, "error listing files", e);
         }
         return new String[0];
     }
@@ -114,6 +126,9 @@ public class DropboxManager {
         if(dropboxAccountManager.hasLinkedAccount()) {
             //return; //don't try and link twice or we'll get an exception
             try {
+                DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
+                dbxFs.removePathListener(listener, new DbxPath("/"), DbxFileSystem.PathListener.Mode.PATH_OR_CHILD);
+
                 dropboxAccountManager.unlink(); //startLink((Activity) this, REQUEST_LINK_TO_DBX);
             } catch (Exception e) {
                 Log.d(TAG, "Exception attempting to dropboxAccountManager.startLink", e);
@@ -121,15 +136,24 @@ public class DropboxManager {
         } else {
             try {
                 dropboxAccountManager.startLink(owningActivity, REQUEST_LINK_TO_DBX);
+
             } catch (Exception e) {
                 Log.d(TAG, "Exception attempting to dropboxAccountManager.startLink", e);
             }
         }
     }
 
+    public void addPathListener() {
+        try {
+            DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
+            dbxFs.addPathListener(listener, new DbxPath("/"), DbxFileSystem.PathListener.Mode.PATH_OR_CHILD);
+        } catch (Exception e) {
+            Log.d(TAG, "Exception attempting to add path listener", e);
+        }
+    }
+
     public boolean linkReady() {
         if(dropboxAccountManager == null) { //should be impossible
-
             return false;
         }
         DbxAccount account = dropboxAccountManager.getLinkedAccount();

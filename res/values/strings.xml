@@ -4,4 +4,7 @@
     <string name="link_account">Link Account</string>
     <string name="unlink_account">Unlink Account</string>
     <string name="photo_mode">Take Pictures</string>
+    <string name="need_linked_account_message">You need to link this application with your dropbox account before you can take pictures</string>
+    <string name="need_linked_account_title">Error</string>
+
 </resources>
