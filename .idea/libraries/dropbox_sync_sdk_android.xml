@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="dropbox-sync-sdk-android">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/libs/dropbox-sync-sdk-android.jar!/" />
+      <root url="jar://$PROJECT_DIR$/libs/android-support-v4.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
