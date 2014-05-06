@@ -25,9 +25,24 @@ public class MainActivity extends Activity {
         setContentView(R.layout.main);
 
         dropboxManager = new DropboxManager(this, getApplicationContext());
-        dropboxManager.asyncSync(new CallbackWrapper() {
-            public void call() {
+        dropboxManager.asyncSync(new Runnable() {
+            @Override
+            public void run() {
                 updateFileList();
+            }
+        });
+
+        dropboxManager.registerUpdateListener(new Runnable() {
+            @Override
+            public void run() {
+                updateFileList();
+            }
+        });
+
+        dropboxManager.registerLinkageListener(new Runnable() {
+            @Override
+            public void run() {
+                updateSyncness();
             }
         });
 
@@ -37,19 +52,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        Log.d(TAG, "paused");
+        Log.d(TAG, "main onPaused");
         dropboxManager.onPause();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        Log.d(TAG, "resumed");
+        Log.d(TAG, "main onResumed");
         dropboxManager.onResume();
-        if(dropboxManager.isUpdateNeeded()) {
-            updateFileList();
-            dropboxManager.setUpdateConsumed(true);
-        }
     }
 
     public void updateFileList() {
@@ -146,21 +157,6 @@ public class MainActivity extends Activity {
 
             updateFileList();
             //empty out file list
-        }
-    }
-
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == DropboxManager.REQUEST_LINK_TO_DBX) {
-            if (resultCode == Activity.RESULT_OK) {
-                dropboxManager.addPathListener(); //would really like to have this somewhere in the DropboxManager
-            } else {
-                Log.d(TAG, "Failed to link to dropbox account");
-            }
-
-            updateSyncness();
-        } else {
-            super.onActivityResult(requestCode, resultCode, data);
         }
     }
 }

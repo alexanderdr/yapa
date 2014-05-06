@@ -1,21 +1,24 @@
 package com.example.yapa;
 
 import android.app.Activity;
+import android.app.Fragment;
+import android.app.FragmentManager;
+import android.app.FragmentTransaction;
 import android.content.Context;
+import android.content.Intent;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 import com.dropbox.sync.android.*;
 
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
 
 public class DropboxManager {
 
     private DbxAccountManager dropboxAccountManager;
-
-    private boolean shouldUpdate = false;
 
     private final String APP_KEY = "akqeqxu5gzn2nd1";
     private final String APP_SECRET = "ik4rwf8bczkdsur"; //I somehow feel like this shouldn't be stored in the app... but it's needed
@@ -26,22 +29,41 @@ public class DropboxManager {
 
     public static final int REQUEST_LINK_TO_DBX = 582937465; //arbitrary number
 
-    private Context context;
-
     private DbxFileSystem.PathListener listener;
+
+    ArrayList<Runnable> updateListeners = new ArrayList<Runnable>();
+    ArrayList<Runnable> linkageListeners = new ArrayList<Runnable>();
+
+    Fragment listenerFragment;
 
     public DropboxManager(Activity owner, Context ctx) {
         dropboxAccountManager = DbxAccountManager.getInstance(ctx, APP_KEY, APP_SECRET);
         owningActivity = owner;
 
-        context = ctx;
-
         listener = new DbxFileSystem.PathListener() {
             @Override
             public void onPathChange(DbxFileSystem fs, DbxPath registeredPath, Mode registeredMode) {
-                shouldUpdate = true;
+                updateListenersOnMainThread(updateListeners);
             }
         };
+
+        listenerFragment = new Fragment() {
+            @Override
+            public void onActivityResult(int requestCode, int resultCode, Intent data) {
+                if (resultCode == Activity.RESULT_OK) {
+                    addPathListener();
+                } else {
+                    Log.d(TAG, "Failed to link to dropbox account");
+                }
+
+                updateListenersOnMainThread(linkageListeners);
+            }
+        };
+
+        FragmentManager fragmentManager = owner.getFragmentManager();
+        FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+        fragmentTransaction.add(listenerFragment, "dropboxManagerFragment");
+        fragmentTransaction.commit();
 
         addPathListener();
     }
@@ -50,6 +72,25 @@ public class DropboxManager {
     }
 
     public void onResume() {
+    }
+
+    public void updateListenersOnMainThread(ArrayList<Runnable> listeners) {
+        Handler h = new Handler(Looper.getMainLooper());
+        for(Runnable r: listeners) {
+            if (r != null) {
+                h.post(r);
+            }
+        }
+    }
+
+    //listeners are always called from the main thread
+    public void registerUpdateListener(Runnable r) {
+        updateListeners.add(r);
+    }
+
+    //listeners are always called from the main thread
+    public void registerLinkageListener(Runnable r) {
+        linkageListeners.add(r);
     }
 
     public void asyncSync() {
@@ -62,21 +103,21 @@ public class DropboxManager {
         return synced;
     }
 
-    public void asyncSync(final CallbackWrapper callback) {
+    public void asyncSync(final Runnable callback) {
         Thread t = new Thread() {
             public void run() {
                 try {
+                    if(!linkReady()) {
+                        return;
+                    }
+
                     DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
                     dbxFs.syncNowAndWait();
 
                     //run the callback on the main thread because it may need to do UI work
                     if(callback != null) {
                         Handler h = new Handler(Looper.getMainLooper());
-                        h.post(new Runnable() {
-                            public void run() {
-                                callback.call();
-                            }
-                        });
+                        h.post(callback);
                     }
 
                 } catch (Exception e) {
@@ -87,22 +128,6 @@ public class DropboxManager {
             }
         };
         t.start();
-    }
-
-    public void setUpdateConsumed(boolean b) {
-        shouldUpdate = b;
-    }
-
-    public boolean isUpdateNeeded() {
-        return shouldUpdate;
-    }
-
-    public String[] getListIfUpdateNeeded() {
-        if(shouldUpdate) {
-            return getFileListAsStrings();
-        }
-        shouldUpdate = false;
-        return new String[0];
     }
 
     public String[] getFileListAsStrings() {
@@ -132,15 +157,19 @@ public class DropboxManager {
                 dbxFs.removePathListener(listener, new DbxPath("/"), DbxFileSystem.PathListener.Mode.PATH_OR_CHILD);
 
                 dropboxAccountManager.unlink(); //startLink((Activity) this, REQUEST_LINK_TO_DBX);
+
+                updateListenersOnMainThread(linkageListeners);
+
             } catch (Exception e) {
                 Log.d(TAG, "Exception attempting to dropboxAccountManager.startLink", e);
             }
         } else {
             try {
-                dropboxAccountManager.startLink(owningActivity, REQUEST_LINK_TO_DBX);
+                //dropboxAccountManager.startLink(owningActivity, REQUEST_LINK_TO_DBX);
 
-                //addPathListener is called in MainActivity after we recieve the callback here, because we don't
-                //have a valid account so .forAccount errors
+                //one-off activity to handle the startLink callback...
+                dropboxAccountManager.startLink(listenerFragment, REQUEST_LINK_TO_DBX);
+
             } catch (Exception e) {
                 Log.d(TAG, "Exception attempting to dropboxAccountManager.startLink", e);
             }
@@ -148,6 +177,7 @@ public class DropboxManager {
     }
 
     public void addPathListener() {
+        if(!linkReady()) return;
         try {
             DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
             dbxFs.addPathListener(listener, new DbxPath("/"), DbxFileSystem.PathListener.Mode.PATH_OR_CHILD);
@@ -189,7 +219,7 @@ public class DropboxManager {
 
     public void saveImageData(byte[] data) {
 
-        DbxFile testFile = null;
+        DbxFile dbxFile = null;
 
         int nextNumber = 0;
         String filename = "image.jpg";
@@ -230,10 +260,10 @@ public class DropboxManager {
             DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
 
             Log.d(TAG, "Creating dbxFS file "+filename);
-            testFile = dbxFs.create(new DbxPath(filename));
+            dbxFile = dbxFs.create(new DbxPath(filename));
 
             Log.d(TAG, "Getting write stream for dbxFS file");
-            OutputStream os = testFile.getWriteStream();
+            OutputStream os = dbxFile.getWriteStream();
             os.write(data);
             Log.d(TAG, "Bytes written to dbxFS file");
             os.close();
@@ -243,10 +273,8 @@ public class DropboxManager {
         } catch(Exception e){
             Log.d(TAG, "Problem creating image file", e);
         } finally {
-            if(testFile != null) {
-                Log.d(TAG, "closing test file");
-                testFile.close();
-                Log.d(TAG, "test file closed");
+            if(dbxFile != null) {
+                dbxFile.close();
             }
         }
     }
