@@ -18,23 +18,21 @@ import java.util.StringTokenizer;
 
 public class DropboxManager {
 
-    private DbxAccountManager dropboxAccountManager;
-
     private final String APP_KEY = "akqeqxu5gzn2nd1";
     private final String APP_SECRET = "ik4rwf8bczkdsur"; //I somehow feel like this shouldn't be stored in the app... but it's needed
 
     private final String TAG = "dropbox-wrapper";
 
-    Activity owningActivity;
-
-    public static final int REQUEST_LINK_TO_DBX = 582937465; //arbitrary number
+    private ArrayList<Runnable> updateListeners = new ArrayList<Runnable>();
+    private ArrayList<Runnable> linkageListeners = new ArrayList<Runnable>();
 
     private DbxFileSystem.PathListener listener;
 
-    ArrayList<Runnable> updateListeners = new ArrayList<Runnable>();
-    ArrayList<Runnable> linkageListeners = new ArrayList<Runnable>();
+    private Activity owningActivity;
+    private Fragment listenerFragment;
 
-    Fragment listenerFragment;
+    private DbxAccountManager dropboxAccountManager;
+    public static final int REQUEST_LINK_TO_DBX = 582937465; //arbitrary number-- not really needed now because of private fragment
 
     public DropboxManager(Activity owner, Context ctx) {
         dropboxAccountManager = DbxAccountManager.getInstance(ctx, APP_KEY, APP_SECRET);
@@ -74,7 +72,7 @@ public class DropboxManager {
     public void onResume() {
     }
 
-    public void updateListenersOnMainThread(ArrayList<Runnable> listeners) {
+    private void updateListenersOnMainThread(ArrayList<Runnable> listeners) {
         Handler h = new Handler(Looper.getMainLooper());
         for(Runnable r: listeners) {
             if (r != null) {
@@ -148,20 +146,15 @@ public class DropboxManager {
                 DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
                 dbxFs.removePathListener(listener, new DbxPath("/"), DbxFileSystem.PathListener.Mode.PATH_OR_CHILD);
 
-                dropboxAccountManager.unlink(); //startLink((Activity) this, REQUEST_LINK_TO_DBX);
+                dropboxAccountManager.unlink();
 
                 updateListenersOnMainThread(linkageListeners);
-
             } catch (Exception e) {
-                Log.d(TAG, "Exception attempting to dropboxAccountManager.startLink", e);
+                Log.d(TAG, "Exception attempting to dropboxAccountManager.unlink", e);
             }
         } else {
             try {
-                //dropboxAccountManager.startLink(owningActivity, REQUEST_LINK_TO_DBX);
-
-                //one-off activity to handle the startLink callback...
                 dropboxAccountManager.startLink(listenerFragment, REQUEST_LINK_TO_DBX);
-
             } catch (Exception e) {
                 Log.d(TAG, "Exception attempting to dropboxAccountManager.startLink", e);
             }
@@ -219,7 +212,6 @@ public class DropboxManager {
         //kind of ugly, but until we start using a local db and listening for sync updates this is probably the best we can do
         String[] fileList = getFileListAsStrings();
         for(String s: fileList) {
-            //Log.d(TAG, "considering file "+s);
             if(s == null) {
                 continue;
             }
