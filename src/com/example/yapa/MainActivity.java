@@ -25,12 +25,6 @@ public class MainActivity extends Activity {
         setContentView(R.layout.main);
 
         dropboxManager = new DropboxManager(this, getApplicationContext());
-        dropboxManager.asyncSync(new Runnable() {
-            @Override
-            public void run() {
-                updateFileList();
-            }
-        });
 
         dropboxManager.registerUpdateListener(new Runnable() {
             @Override
@@ -45,6 +39,8 @@ public class MainActivity extends Activity {
                 updateSyncness();
             }
         });
+
+        dropboxManager.asyncSync();
 
         updateSyncness();
     }

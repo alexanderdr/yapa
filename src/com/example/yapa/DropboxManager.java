@@ -93,17 +93,13 @@ public class DropboxManager {
         linkageListeners.add(r);
     }
 
-    public void asyncSync() {
-        asyncSync(null);
-    }
-
     private boolean synced = false;
 
     public boolean isSynced() {
         return synced;
     }
 
-    public void asyncSync(final Runnable callback) {
+    public void asyncSync() {
         Thread t = new Thread() {
             public void run() {
                 try {
@@ -114,11 +110,7 @@ public class DropboxManager {
                     DbxFileSystem dbxFs = DbxFileSystem.forAccount(dropboxAccountManager.getLinkedAccount());
                     dbxFs.syncNowAndWait();
 
-                    //run the callback on the main thread because it may need to do UI work
-                    if(callback != null) {
-                        Handler h = new Handler(Looper.getMainLooper());
-                        h.post(callback);
-                    }
+                    updateListenersOnMainThread(updateListeners);
 
                 } catch (Exception e) {
                     Log.d(TAG, "error syncing", e);
